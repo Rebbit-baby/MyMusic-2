@@ -49,17 +49,23 @@ function getTableForKey(key: string): TableName {
 }
 
 async function ensureTables(env: Env): Promise<void> {
-  if (!hasD1(env)) {
-    return;
-  }
+  if (!hasD1(env)) return;
+
   const createStatements = [
-    env.DB.prepare(
-      "CREATE TABLE IF NOT EXISTS playback_store (key TEXT PRIMARY KEY, value TEXT, updated_at TEXT DEFAULT CURRENT_TIMESTAMP)"
-    ),
-    env.DB.prepare(
-      "CREATE TABLE IF NOT EXISTS favorites_store (key TEXT PRIMARY KEY, value TEXT, updated_at TEXT DEFAULT CURRENT_TIMESTAMP)"
-    ),
+    "CREATE TABLE IF NOT EXISTS playback_store (key TEXT PRIMARY KEY, value TEXT, updated_at TEXT DEFAULT CURRENT_TIMESTAMP)",
+    "CREATE TABLE IF NOT EXISTS favorites_store (key TEXT PRIMARY KEY, value TEXT, updated_at TEXT DEFAULT CURRENT_TIMESTAMP)",
   ];
+
+  for (const sql of createStatements) {
+    try {
+      console.log("Executing SQL:", sql);
+      await env.DB.prepare(sql).run();
+      console.log("SQL executed successfully");
+    } catch (err) {
+      console.error("Error executing SQL:", sql, err);
+    }
+  }
+}
   await env.DB.batch(createStatements);
 }
 
@@ -131,26 +137,27 @@ async function handleGet(request: Request, env: Env): Promise<Response> {
 }
 
 async function handlePost(request: Request, env: Env): Promise<Response> {
-  console.log("D1 available?", hasD1(env));
-console.log("env.DB:", env.DB);
   if (!hasD1(env)) {
     return jsonResponse({ d1Available: false, data: {} });
   }
 
   const body = (await request.json().catch(() => ({}))) as JsonBody;
   const payload = body.data && typeof body.data === "object" ? body.data : null;
-console.log("Received payload:", payload);
+
+  console.log("Received payload:", payload);
+
   if (!payload || Array.isArray(payload)) {
     return jsonResponse({ error: "Invalid payload" }, 400);
   }
+
+  await ensureTables(env);
 
   const entries = Object.entries(payload).filter(([key]) => Boolean(key));
   if (entries.length === 0) {
     return jsonResponse({ d1Available: true, updated: 0 });
   }
 
-  await ensureTables(env);
-
+  // 分组生成 SQL
   const groupedStatements: Record<string, D1PreparedStatement[]> = {
     [TABLES.playback]: [],
     [TABLES.favorites]: [],
@@ -165,21 +172,23 @@ console.log("Received payload:", payload);
       ).bind(key, storedValue)
     );
   });
-  console.log("Grouped statements:", {
-  playback: groupedStatements.playback.length,
-  favorites: groupedStatements.favorites.length,
-});
 
-  const batches: Promise<unknown>[] = [];
-  Object.values(groupedStatements).forEach((statements) => {
-    if (statements.length > 0) {
-      batches.push(env.DB.batch(statements));
+  // 逐条执行
+  let updatedCount = 0;
+  for (const [table, statements] of Object.entries(groupedStatements)) {
+    for (const stmt of statements) {
+      try {
+        console.log("Executing statement for table:", table);
+        await stmt.run();
+        console.log("Statement executed successfully for table:", table);
+        updatedCount++;
+      } catch (err) {
+        console.error("Error executing statement for table:", table, err);
+      }
     }
-  });
-console.log("Executing batches...", batches.length);
-  await Promise.all(batches);
-  console.log("Batches executed successfully");
-  return jsonResponse({ d1Available: true, updated: entries.length });
+  }
+
+  return jsonResponse({ d1Available: true, updated: updatedCount });
 }
 
 async function handleDelete(request: Request, env: Env): Promise<Response> {
