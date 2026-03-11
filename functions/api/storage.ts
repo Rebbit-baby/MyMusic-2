@@ -6,18 +6,15 @@ const JSON_HEADERS = {
 };
 
 type Env = {
-  DB: D1Database; // 确保和 Cloudflare Pages D1 Binding 名一致
+  DB?: D1Database;
 };
+
+type StorageData = Record<string, string | null>;
 
 type JsonBody = {
   data?: Record<string, unknown>;
-  keys?: string[];
+  keys?: unknown;
 };
-
-const TABLES = {
-  playback: "playback_store",
-  favorites: "favorites_store",
-} as const;
 
 const FAVORITE_KEYS = new Set([
   "favoriteSongs",
@@ -26,156 +23,216 @@ const FAVORITE_KEYS = new Set([
   "favoritePlaybackTime",
 ]);
 
-function getTableForKey(key: string): keyof typeof TABLES {
-  return FAVORITE_KEYS.has(key) ? TABLES.favorites : TABLES.playback;
+const TABLES = {
+  playback: "playback_store",
+  favorites: "favorites_store",
+} as const;
+
+type TableName = (typeof TABLES)[keyof typeof TABLES];
+
+function jsonResponse(body: unknown, status = 200): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: JSON_HEADERS,
+  });
 }
 
-function jsonResponse(body: unknown, status = 200) {
-  return new Response(JSON.stringify(body), { status, headers: JSON_HEADERS });
+function hasD1(env: Env): env is Required<Env> {
+  return Boolean(env.DB && typeof env.DB.prepare === "function");
 }
 
-// 创建表
-async function ensureTables(env: Env) {
+function getTableForKey(key: string): TableName {
+  if (FAVORITE_KEYS.has(key)) {
+    return TABLES.favorites;
+  }
+  return TABLES.playback;
+}
+
+async function ensureTables(env: Env): Promise<void> {
+  if (!hasD1(env)) {
+    return;
+  }
   const createStatements = [
-    `CREATE TABLE IF NOT EXISTS playback_store (
-      key TEXT PRIMARY KEY,
-      value TEXT,
-      updated_at TEXT DEFAULT CURRENT_TIMESTAMP
-    )`,
-    `CREATE TABLE IF NOT EXISTS favorites_store (
-      key TEXT PRIMARY KEY,
-      value TEXT,
-      updated_at TEXT DEFAULT CURRENT_TIMESTAMP
-    )`,
+    env.DB.prepare(
+      "CREATE TABLE IF NOT EXISTS playback_store (key TEXT PRIMARY KEY, value TEXT, updated_at TEXT DEFAULT CURRENT_TIMESTAMP)"
+    ),
+    env.DB.prepare(
+      "CREATE TABLE IF NOT EXISTS favorites_store (key TEXT PRIMARY KEY, value TEXT, updated_at TEXT DEFAULT CURRENT_TIMESTAMP)"
+    ),
   ];
-
-  for (const sql of createStatements) {
-    try {
-      console.log("Executing SQL:", sql);
-      await env.DB.prepare(sql).run();
-      console.log("SQL executed successfully");
-    } catch (err) {
-      console.error("Error executing SQL:", sql, err);
-    }
-  }
+  await env.DB.batch(createStatements);
 }
 
-export async function onRequest(context: { request: Request; env: Env }) {
-  const { request, env } = context;
-
-  try {
-    const method = (request.method || "GET").toUpperCase();
-
-    // CORS 预检
-    if (method === "OPTIONS") return new Response(null, { status: 204, headers: JSON_HEADERS });
-
-    if (!env.DB) return jsonResponse({ error: "D1 database not available" }, 500);
-
-    // GET: 查询数据
-    if (method === "GET") {
-      const url = new URL(request.url);
-      const keysParam = url.searchParams.get("keys") || "";
-      const keys = keysParam.split(",").map((k) => k.trim()).filter(Boolean);
-
-      await ensureTables(env);
-
-      const data: Record<string, string | null> = {};
-
-      if (keys.length > 0) {
-        for (const key of keys) {
-          const table = getTableForKey(key);
-          try {
-            const res = await env.DB.prepare(`SELECT value FROM ${table} WHERE key=?`).bind(key).first();
-            data[key] = res?.value ?? null;
-          } catch (err) {
-            console.error(`Error fetching key "${key}" from table "${table}":`, err);
-            data[key] = null;
-          }
-        }
-      } else {
-        // 获取全部数据
-        for (const table of Object.values(TABLES)) {
-          try {
-            const res = await env.DB.prepare(`SELECT key, value FROM ${table}`).all();
-            (res.results || []).forEach((row: any) => (data[row.key] = row.value));
-          } catch (err) {
-            console.error(`Error fetching table "${table}":`, err);
-          }
-        }
-      }
-
-      return jsonResponse({ ok: true, data });
-    }
-
-    // POST: 写入数据
-    if (method === "POST") {
-      const text = await request.text();
-      console.log("Raw POST body:", text);
-
-      let body: JsonBody;
-      try {
-        body = JSON.parse(text);
-      } catch (err) {
-        console.error("Failed to parse JSON:", err);
-        return jsonResponse({ error: "Invalid JSON" }, 400);
-      }
-
-      const payload = body.data && typeof body.data === "object" ? body.data : null;
-      if (!payload) return jsonResponse({ error: "Missing data" }, 400);
-
-      await ensureTables(env);
-
-      let updatedCount = 0;
-      for (const [key, value] of Object.entries(payload)) {
-        const table = getTableForKey(key);
-        try {
-          await env.DB.prepare(
-            `INSERT INTO ${table} (key, value, updated_at)
-             VALUES (?1, ?2, datetime('now'))
-             ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=excluded.updated_at`
-          ).bind(key, String(value ?? "")).run();
-          updatedCount++;
-        } catch (err) {
-          console.error(`Error inserting key "${key}" into table "${table}":`, err);
-        }
-      }
-
-      return jsonResponse({ ok: true, updated: updatedCount });
-    }
-
-    // DELETE: 删除数据
-    if (method === "DELETE") {
-      const text = await request.text();
-      let body: JsonBody = {};
-      try {
-        body = JSON.parse(text);
-      } catch (err) {
-        console.error("Failed to parse JSON for DELETE:", err);
-        return jsonResponse({ error: "Invalid JSON" }, 400);
-      }
-
-      const keys = Array.isArray(body.keys) ? body.keys : [];
-      if (!keys.length) return jsonResponse({ ok: true, deleted: 0 });
-
-      await ensureTables(env);
-
-      let deletedCount = 0;
-      for (const key of keys) {
-        const table = getTableForKey(key);
-        try {
-          await env.DB.prepare(`DELETE FROM ${table} WHERE key=?`).bind(key).run();
-          deletedCount++;
-        } catch (err) {
-          console.error(`Error deleting key "${key}" from table "${table}":`, err);
-        }
-      }
-
-      return jsonResponse({ ok: true, deleted: deletedCount });
-    }
-
-    return jsonResponse({ error: "Method not allowed" }, 405);
-  } catch (err) {
-    console.error("Global error in onRequest:", err);
-    return jsonResponse({ error: String(err) }, 500);
+async function handleGet(request: Request, env: Env): Promise<Response> {
+  const url = new URL(request.url);
+  if (!hasD1(env)) {
+    return jsonResponse({ d1Available: false, data: {} });
   }
+
+  const statusOnly = url.searchParams.get("status");
+  if (statusOnly) {
+    return jsonResponse({ d1Available: true });
+  }
+
+  const keysParam = url.searchParams.get("keys") || "";
+  const keys = keysParam
+    .split(",")
+    .map((key) => key.trim())
+    .filter(Boolean);
+
+  await ensureTables(env);
+
+  const data: StorageData = {};
+  let rows: Array<{ key: string; value: string | null }> = [];
+  if (keys.length > 0) {
+    const groupedKeys = keys.reduce(
+      (acc, key) => {
+        const table = getTableForKey(key);
+        acc[table].push(key);
+        return acc;
+      },
+      { [TABLES.playback]: [] as string[], [TABLES.favorites]: [] as string[] }
+    );
+
+    const results: Array<{ key: string; value: string | null }> = [];
+    for (const [table, tableKeys] of Object.entries(groupedKeys)) {
+      if (tableKeys.length === 0) continue;
+      const placeholders = tableKeys.map(() => "?").join(",");
+      const statement = env.DB.prepare(
+        `SELECT key, value FROM ${table} WHERE key IN (${placeholders})`
+      ).bind(...tableKeys);
+      const result = await statement.all();
+      const rowsResult = (result as any).results || result.results || [];
+      results.push(...rowsResult);
+    }
+    rows = results;
+    keys.forEach((key) => {
+      data[key] = null;
+    });
+  } else {
+    const playbackResult = await env.DB.prepare(
+      "SELECT key, value FROM playback_store"
+    ).all();
+    const favoriteResult = await env.DB.prepare(
+      "SELECT key, value FROM favorites_store"
+    ).all();
+    rows = [
+      ...(((playbackResult as any).results || playbackResult.results || []) as any[]),
+      ...(((favoriteResult as any).results || favoriteResult.results || []) as any[]),
+    ];
+  }
+
+  rows.forEach((row) => {
+    if (!row || typeof row.key !== "string") return;
+    data[row.key] = row.value;
+  });
+
+  return jsonResponse({ d1Available: true, data });
+}
+
+async function handlePost(request: Request, env: Env): Promise<Response> {
+  if (!hasD1(env)) {
+    return jsonResponse({ d1Available: false, data: {} });
+  }
+
+  const body = (await request.json().catch(() => ({}))) as JsonBody;
+  const payload = body.data && typeof body.data === "object" ? body.data : null;
+
+  if (!payload || Array.isArray(payload)) {
+    return jsonResponse({ error: "Invalid payload" }, 400);
+  }
+
+  const entries = Object.entries(payload).filter(([key]) => Boolean(key));
+  if (entries.length === 0) {
+    return jsonResponse({ d1Available: true, updated: 0 });
+  }
+
+  await ensureTables(env);
+
+  const groupedStatements: Record<string, D1PreparedStatement[]> = {
+    [TABLES.playback]: [],
+    [TABLES.favorites]: [],
+  };
+
+  entries.forEach(([key, value]) => {
+    const storedValue = value == null ? "" : String(value);
+    const table = getTableForKey(key);
+    groupedStatements[table].push(
+      env.DB.prepare(
+        `INSERT INTO ${table} (key, value, updated_at) VALUES (?1, ?2, datetime('now')) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`
+      ).bind(key, storedValue)
+    );
+  });
+
+  const batches: Promise<unknown>[] = [];
+  Object.values(groupedStatements).forEach((statements) => {
+    if (statements.length > 0) {
+      batches.push(env.DB.batch(statements));
+    }
+  });
+
+  await Promise.all(batches);
+  return jsonResponse({ d1Available: true, updated: entries.length });
+}
+
+async function handleDelete(request: Request, env: Env): Promise<Response> {
+  if (!hasD1(env)) {
+    return jsonResponse({ d1Available: false });
+  }
+
+  const body = (await request.json().catch(() => ({}))) as JsonBody;
+  const keys = Array.isArray(body.keys)
+    ? body.keys.filter((key): key is string => typeof key === "string" && Boolean(key))
+    : [];
+
+  if (keys.length === 0) {
+    return jsonResponse({ d1Available: true, deleted: 0 });
+  }
+
+  await ensureTables(env);
+
+  const groupedStatements: Record<string, D1PreparedStatement[]> = {
+    [TABLES.playback]: [],
+    [TABLES.favorites]: [],
+  };
+
+  keys.forEach((key) => {
+    const table = getTableForKey(key);
+    groupedStatements[table].push(
+      env.DB.prepare(`DELETE FROM ${table} WHERE key = ?1`).bind(key)
+    );
+  });
+
+  const batches: Promise<unknown>[] = [];
+  Object.values(groupedStatements).forEach((statements) => {
+    if (statements.length > 0) {
+      batches.push(env.DB.batch(statements));
+    }
+  });
+
+  await Promise.all(batches);
+  return jsonResponse({ d1Available: true, deleted: keys.length });
+}
+
+export async function onRequest(context: any): Promise<Response> {
+  const { request, env } = context;
+  const method = (request.method || "GET").toUpperCase();
+
+  if (method === "OPTIONS") {
+    return new Response(null, { status: 204, headers: JSON_HEADERS });
+  }
+
+  if (method === "GET") {
+    return handleGet(request, env);
+  }
+
+  if (method === "POST") {
+    return handlePost(request, env);
+  }
+
+  if (method === "DELETE") {
+    return handleDelete(request, env);
+  }
+
+  return jsonResponse({ error: "Method not allowed" }, 405);
 }
