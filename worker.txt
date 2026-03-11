@@ -1,7 +1,0 @@
-import { onRequest } from "./functions/proxy";
-
-export default {
-  async fetch(request, env, ctx) {
-    return onRequest({ request });
-  }
-};
