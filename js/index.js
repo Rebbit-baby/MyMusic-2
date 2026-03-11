@@ -420,6 +420,7 @@ function createPersistentStorageClient() {
         if (!available || !items || typeof items !== "object") {
             return false;
         }
+        console.log("REMOTE POST:", items);
         try {
             await fetch(REMOTE_STORAGE_ENDPOINT, {
                 method: "POST",
@@ -469,6 +470,13 @@ function persistStorageItems(items) {
     if (!items || typeof items !== "object") {
         return;
     }
+        const now = Date.now();
+
+    if (now - lastSync < 5000) {
+        return;
+    }
+
+    lastSync = now;
     persistentStorage.setItems(items).catch((error) => {
         console.warn("同步远程存储失败", error);
     });
@@ -500,7 +508,7 @@ function safeSetLocalStorage(key, value, options = {}) {
         console.warn(`写入本地存储失败: ${key}`, error);
     }
     if (!skipRemote && remoteSyncEnabled && shouldSyncStorageKey(key)) {
-        persistStorageItems({ [key]: value });
+        persistStorageItems({ [key]: JSON.stringify(value) });
     }
 }
 
