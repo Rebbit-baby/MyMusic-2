@@ -1,6 +1,0 @@
-name = "music-proxy"
-main = "worker.js"
-compatibility_date = "2024-12-01"
-routes = [
-  { pattern = "1006789.xyz/proxy*", zone_name = "1006789.xyz" }
-]
