@@ -467,11 +467,11 @@ function shouldSyncStorageKey(key) {
 }
 
 function persistStorageItems(items) {
+     let lastSync = 0；
     if (!items || typeof items !== "object") {
         return;
     }
-        const now = Date.now();
-
+    const now = Date.now();
     if (now - lastSync < 5000) {
         return;
     }
