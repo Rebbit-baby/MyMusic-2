@@ -137,6 +137,14 @@ async function handleGet(request: Request, env: Env): Promise<Response> {
 }
 
 async function handlePost(request: Request, env: Env): Promise<Response> {
+  try {
+  const text = await request.text();
+  console.log("Raw request body:", text);
+  const body = JSON.parse(text) as JsonBody;
+} catch (err) {
+  console.error("Failed to parse request body:", err);
+  return jsonResponse({ error: "Invalid JSON" }, 400);
+}
   if (!hasD1(env)) {
     return jsonResponse({ d1Available: false, data: {} });
   }
@@ -231,24 +239,21 @@ async function handleDelete(request: Request, env: Env): Promise<Response> {
 }
 
 export async function onRequest(context: any): Promise<Response> {
-  const { request, env } = context;
-  const method = (request.method || "GET").toUpperCase();
+  try {
+    const { request, env } = context;
+    const method = (request.method || "GET").toUpperCase();
 
-  if (method === "OPTIONS") {
-    return new Response(null, { status: 204, headers: JSON_HEADERS });
+    if (method === "OPTIONS") {
+      return new Response(null, { status: 204, headers: JSON_HEADERS });
+    }
+
+    if (method === "GET") return handleGet(request, env);
+    if (method === "POST") return handlePost(request, env);
+    if (method === "DELETE") return handleDelete(request, env);
+
+    return jsonResponse({ error: "Method not allowed" }, 405);
+  } catch (err) {
+    console.error("Global onRequest error:", err);
+    return jsonResponse({ error: String(err) }, 500);
   }
-
-  if (method === "GET") {
-    return handleGet(request, env);
-  }
-
-  if (method === "POST") {
-    return handlePost(request, env);
-  }
-
-  if (method === "DELETE") {
-    return handleDelete(request, env);
-  }
-
-  return jsonResponse({ error: "Method not allowed" }, 405);
 }
