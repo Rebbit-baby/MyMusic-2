@@ -4531,10 +4531,16 @@ function renderPlaylist() {
 }
 
 function ensureFavoriteSongsArray() {
-    if (!Array.isArray(state.favoriteSongs)) {
-        state.favoriteSongs = [];
+    const raw = localStorage.getItem("favoriteSongs");
+
+    if (!raw) return [];
+
+    try {
+        const parsed = JSON.parse(raw);
+        return Array.isArray(parsed) ? parsed : [];
+    } catch {
+        return [];
     }
-    return state.favoriteSongs;
 }
 
 function isSongFavorited(song) {
@@ -4842,20 +4848,39 @@ function toggleFavorite(song) {
 
     const normalizedSong = sanitizeImportedSong(song) || { ...song };
     const key = getSongKey(normalizedSong);
+
     if (!key) {
         showNotification("无法收藏该歌曲", "error");
         return;
     }
 
-    const favorites = ensureFavoriteSongsArray();
-    const existingIndex = favorites.findIndex((item) => getSongKey(item) === key);
+    let favorites = ensureFavoriteSongsArray();
+
+    const existingIndex = favorites.findIndex(
+        (item) => getSongKey(item) === key
+    );
 
     if (existingIndex >= 0) {
-        removeFavoriteAtIndex(existingIndex);
+
+        favorites.splice(existingIndex, 1);
+
+        safeSetLocalStorage(
+            "favoriteSongs",
+            JSON.stringify(favorites)
+        );
+
+        renderFavorites();
         showNotification("已从收藏列表移除", "success");
+
     } else {
+
         favorites.push(normalizedSong);
-        saveFavoriteState();
+
+        safeSetLocalStorage(
+            "favoriteSongs",
+            JSON.stringify(favorites)
+        );
+
         renderFavorites();
         showNotification("已添加到收藏列表", "success");
     }
