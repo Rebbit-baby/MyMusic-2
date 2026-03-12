@@ -964,7 +964,9 @@ saveFavoriteState();
 async function bootstrapPersistentStorage() {
     try {
         const remoteKeys = Array.from(STORAGE_KEYS_TO_SYNC);
+         console.log("REMOTE KEYS:", remoteKeys);
         const snapshot = await persistentStorage.getItems(remoteKeys);
+         console.log("SNAPSHOT:", snapshot);
         if (!snapshot || !snapshot.d1Available || !snapshot.data) {
             return;
         }
