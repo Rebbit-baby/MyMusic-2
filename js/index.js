@@ -591,6 +591,29 @@ function persistPaletteCache() {
     }
 }
 
+function parseFavorites(raw) {
+    if (!raw) return [];
+    try {
+        // 先解析外层数组
+        let parsed = JSON.parse(raw);
+        if (!Array.isArray(parsed)) return [];
+
+        // 兼容数组内部元素是字符串的历史数据
+        return parsed.map(item => {
+            if (typeof item === "string") {
+                try {
+                    return JSON.parse(item); // 二次解析
+                } catch {
+                    return null; // 解析失败丢弃
+                }
+            }
+            return item; // 本身就是对象
+        }).filter(Boolean); // 去掉 null
+    } catch {
+        return [];
+    }
+}
+
 function preferHttpsUrl(url) {
     if (!url || typeof url !== "string") return url;
 
@@ -967,26 +990,15 @@ async function bootstrapPersistentStorage() {
         const snapshot = await persistentStorage.getItems(remoteKeys);
         if (!snapshot || !snapshot.d1Available || !snapshot.data) return;
 
-        // 兼容双 JSON
-        if (snapshot.data.favoriteSongs) {
-            let favs = snapshot.data.favoriteSongs;
-            if (typeof favs === "string") {
-                try {
-                    favs = JSON.parse(favs);
-                    if (typeof favs === "string") {
-                        favs = JSON.parse(favs);
-                    }
-                } catch { favs = []; }
-            }
-            state.favoriteSongs = Array.isArray(favs) ? favs : [];
-        }
+        // 🔹 这里调用 parseFavorites
+        state.favoriteSongs = parseFavorites(snapshot.data.favoriteSongs);
 
-        // 同步其他状态
+        // 其他状态初始化
         state.currentFavoriteIndex = Number(snapshot.data.currentFavoriteIndex || 0);
         state.favoritePlayMode = snapshot.data.favoritePlayMode || "list";
         state.favoritePlaybackTime = Number(snapshot.data.favoritePlaybackTime || 0);
 
-        renderFavorites();
+        renderFavorites(); // UI 刷新
     } catch (error) {
         console.warn("加载远程存储失败", error);
     } finally {
@@ -1955,38 +1967,17 @@ function savePlayerState(options = {}) {
 }
 
 function saveFavoriteState(options = {}) {
-
     const { skipRemote = false } = options;
 
-    const favorites = Array.isArray(state.favoriteSongs)
-        ? state.favoriteSongs
-        : [];
+    // ⭐ state.favoriteSongs 永远是对象数组
+    const favorites = Array.isArray(state.favoriteSongs) ? state.favoriteSongs : [];
 
-    safeSetLocalStorage(
-        "favoriteSongs",
-        JSON.stringify(favorites),
-        { skipRemote }
-    );
-
-    safeSetLocalStorage(
-        "currentFavoriteIndex",
-        String(state.currentFavoriteIndex || 0),
-        { skipRemote }
-    );
-
-    safeSetLocalStorage(
-        "favoritePlayMode",
-        state.favoritePlayMode || "list",
-        { skipRemote }
-    );
-
-    safeSetLocalStorage(
-        "favoritePlaybackTime",
-        String(state.favoritePlaybackTime || 0),
-        { skipRemote }
-    );
+    // 写入 localStorage & 远程数据库
+    safeSetLocalStorage("favoriteSongs", JSON.stringify(favorites), { skipRemote });
+    safeSetLocalStorage("currentFavoriteIndex", String(state.currentFavoriteIndex || 0), { skipRemote });
+    safeSetLocalStorage("favoritePlayMode", state.favoritePlayMode || "list", { skipRemote });
+    safeSetLocalStorage("favoritePlaybackTime", String(state.favoritePlaybackTime || 0), { skipRemote });
 }
-
 // 调试日志函数
 function debugLog(message) {
     console.log(`[DEBUG] ${message}`);
