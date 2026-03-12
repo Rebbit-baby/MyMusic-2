@@ -470,7 +470,7 @@ function persistStorageItems(items) {
     if (!items || typeof items !== "object") {
         return;
     }
-
+console.log("REMOTE SYNC:", items);
     persistentStorage.setItems(items).catch((error) => {
         console.warn("同步远程存储失败", error);
     });
