@@ -1973,7 +1973,7 @@ function saveFavoriteState(options = {}) {
     const favorites = Array.isArray(state.favoriteSongs) ? state.favoriteSongs : [];
 
     // 写入 localStorage & 远程数据库
-    safeSetLocalStorage("favoriteSongs", JSON.stringify(favorites), { skipRemote });
+    safeSetLocalStorage("favoriteSongs", favorites, { skipRemote });
     safeSetLocalStorage("currentFavoriteIndex", String(state.currentFavoriteIndex || 0), { skipRemote });
     safeSetLocalStorage("favoritePlayMode", state.favoritePlayMode || "list", { skipRemote });
     safeSetLocalStorage("favoritePlaybackTime", String(state.favoritePlaybackTime || 0), { skipRemote });
