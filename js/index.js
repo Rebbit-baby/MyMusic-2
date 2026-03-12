@@ -964,13 +964,29 @@ saveFavoriteState();
 async function bootstrapPersistentStorage() {
     try {
         const remoteKeys = Array.from(STORAGE_KEYS_TO_SYNC);
-         console.log("REMOTE KEYS:", remoteKeys);
         const snapshot = await persistentStorage.getItems(remoteKeys);
-         console.log("SNAPSHOT:", snapshot);
-        if (!snapshot || !snapshot.d1Available || !snapshot.data) {
-            return;
+        if (!snapshot || !snapshot.d1Available || !snapshot.data) return;
+
+        // 兼容双 JSON
+        if (snapshot.data.favoriteSongs) {
+            let favs = snapshot.data.favoriteSongs;
+            if (typeof favs === "string") {
+                try {
+                    favs = JSON.parse(favs);
+                    if (typeof favs === "string") {
+                        favs = JSON.parse(favs);
+                    }
+                } catch { favs = []; }
+            }
+            state.favoriteSongs = Array.isArray(favs) ? favs : [];
         }
-        applyPersistentSnapshotFromRemote(snapshot.data);
+
+        // 同步其他状态
+        state.currentFavoriteIndex = Number(snapshot.data.currentFavoriteIndex || 0);
+        state.favoritePlayMode = snapshot.data.favoritePlayMode || "list";
+        state.favoritePlaybackTime = Number(snapshot.data.favoritePlaybackTime || 0);
+
+        renderFavorites();
     } catch (error) {
         console.warn("加载远程存储失败", error);
     } finally {
@@ -1939,11 +1955,36 @@ function savePlayerState(options = {}) {
 }
 
 function saveFavoriteState(options = {}) {
+
     const { skipRemote = false } = options;
-    safeSetLocalStorage("favoriteSongs", JSON.stringify(state.favoriteSongs), { skipRemote });
-    safeSetLocalStorage("currentFavoriteIndex", String(state.currentFavoriteIndex), { skipRemote });
-    safeSetLocalStorage("favoritePlayMode", state.favoritePlayMode, { skipRemote });
-    safeSetLocalStorage("favoritePlaybackTime", String(state.favoritePlaybackTime || 0), { skipRemote });
+
+    const favorites = Array.isArray(state.favoriteSongs)
+        ? state.favoriteSongs
+        : [];
+
+    safeSetLocalStorage(
+        "favoriteSongs",
+        JSON.stringify(favorites),
+        { skipRemote }
+    );
+
+    safeSetLocalStorage(
+        "currentFavoriteIndex",
+        String(state.currentFavoriteIndex || 0),
+        { skipRemote }
+    );
+
+    safeSetLocalStorage(
+        "favoritePlayMode",
+        state.favoritePlayMode || "list",
+        { skipRemote }
+    );
+
+    safeSetLocalStorage(
+        "favoritePlaybackTime",
+        String(state.favoritePlaybackTime || 0),
+        { skipRemote }
+    );
 }
 
 // 调试日志函数
@@ -4531,14 +4572,25 @@ function renderPlaylist() {
 }
 
 function ensureFavoriteSongsArray() {
+
     const raw = localStorage.getItem("favoriteSongs");
 
     if (!raw) return [];
 
     try {
-        const parsed = JSON.parse(raw);
+
+        let parsed = JSON.parse(raw);
+
+        if (typeof parsed === "string") {
+            parsed = JSON.parse(parsed);
+        }
+
         return Array.isArray(parsed) ? parsed : [];
-    } catch {
+
+    } catch (e) {
+
+        console.warn("收藏解析失败", e);
+
         return [];
     }
 }
@@ -4842,50 +4894,30 @@ function removeFavoriteAtIndex(index) {
 }
 
 function toggleFavorite(song) {
-    if (!song || typeof song !== "object") {
-        return;
-    }
+    if (!song || typeof song !== "object") return;
 
     const normalizedSong = sanitizeImportedSong(song) || { ...song };
     const key = getSongKey(normalizedSong);
-
     if (!key) {
         showNotification("无法收藏该歌曲", "error");
         return;
     }
 
-    let favorites = ensureFavoriteSongsArray();
-
-    const existingIndex = favorites.findIndex(
-        (item) => getSongKey(item) === key
-    );
+    let favorites = Array.isArray(state.favoriteSongs) ? [...state.favoriteSongs] : [];
+    const existingIndex = favorites.findIndex(item => getSongKey(item) === key);
 
     if (existingIndex >= 0) {
-
         favorites.splice(existingIndex, 1);
-
-        safeSetLocalStorage(
-            "favoriteSongs",
-            JSON.stringify(favorites)
-        );
-
-        renderFavorites();
         showNotification("已从收藏列表移除", "success");
-
     } else {
-
         favorites.push(normalizedSong);
-
-        safeSetLocalStorage(
-            "favoriteSongs",
-            JSON.stringify(favorites)
-        );
-
-        renderFavorites();
         showNotification("已添加到收藏列表", "success");
     }
-}
 
+    state.favoriteSongs = favorites; // ⭐ 更新唯一数据源
+    saveFavoriteState();              // ⭐ 写入 localStorage + D1
+    renderFavorites();                // ⭐ 刷新 UI
+}
 async function playFavoriteSong(index) {
     const favorites = ensureFavoriteSongsArray();
     if (index < 0 || index >= favorites.length) {
