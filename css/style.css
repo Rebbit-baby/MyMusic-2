@@ -62,17 +62,17 @@
 ::-webkit-scrollbar-thumb:hover { background: var(--primary-color); }
 
 body {
-    font-family: var(--font-main);
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    min-height: 100dvh;
     margin: 0;
-    padding: 20px;
-    box-sizing: border-box;
-    color: var(--text-color);
-    transition: color 0.5s;
-    background-color: #0f0f0f;
+    height: 100vh;
+    overflow: hidden; /* ⭐ 防止滚动条 */
+}
+
+.stage {
+    width: 100vw;
+    height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .background-stage {
@@ -111,16 +111,14 @@ body.background-transitioning .background-stage__layer--transition {
 
 /* 16:9 容器布局 */
 .container {
-    width: min(1200px, 100%);
+    width: 1200px;
+    max-height: 600px; 
     margin: 0 auto;
     background: var(--container-bg);
-    border-radius: 24px;
-    padding: 30px;
+    border-radius: 21px;
+    padding:1px;
     box-shadow: 0 20px 60px rgba(0,0,0,0.1);
     border: 1px solid var(--border-color);
-    aspect-ratio: 16/9;
-    height: 80vh;
-    max-height: 700px;
     display: grid;
     grid-template-areas:
         "header header header"
@@ -129,11 +127,14 @@ body.background-transitioning .background-stage__layer--transition {
         "controls controls controls";
     grid-template-rows: auto auto 1fr 80px;
     grid-template-columns: 300px 1fr 1fr;
-    gap: 20px;
+    gap: 0px;
     transition: background 0.5s, box-shadow 0.5s;
     overflow: visible;
     position: relative;
+     transform-origin: center center;
+    will-change: transform;
 }
+
 
 /* 搜索模式下的容器布局 */
 .container.search-mode {
@@ -168,7 +169,7 @@ body.background-transitioning .background-stage__layer--transition {
     grid-area: search;
     background: var(--component-bg);
     border-radius: 16px;
-    padding: 20px;
+    padding: 8px;
     border: 1px solid var(--border-color);
     position: relative;
     transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
@@ -203,7 +204,7 @@ body.background-transitioning .background-stage__layer--transition {
 
 .search-input {
     flex: 1;
-    padding: 12px 16px;
+    padding: 10px 10px;
     border: 2px solid var(--border-color);
     border-radius: 12px;
     background: var(--component-bg);
@@ -229,7 +230,7 @@ body.background-transitioning .background-stage__layer--transition {
     align-items: center;
     justify-content: space-between;
     gap: 8px;
-    padding: 12px 18px;
+    padding: 1px 1px;
     border: 1px solid var(--border-color);
     border-radius: 12px;
     background: var(--component-bg);
@@ -239,7 +240,7 @@ body.background-transitioning .background-stage__layer--transition {
     font-weight: 500;
     cursor: pointer;
     transition: all 0.25s ease;
-    min-width: 150px;
+    min-width: 1px;
     position: relative;
     box-shadow: none;
 }
@@ -277,7 +278,7 @@ body.background-transitioning .background-stage__layer--transition {
     box-shadow: 0 12px 30px rgba(0,0,0,0.18);
     border: 1px solid var(--border-color);
     box-sizing: border-box;
-    min-width: 100%;
+    min-width: 10%;
     max-height: 320px;
     overflow-y: auto;
     overflow-x: hidden;
@@ -315,7 +316,7 @@ body.background-transitioning .background-stage__layer--transition {
     align-items: center;
     justify-content: space-between;
     gap: 12px;
-    padding: 12px 16px;
+    padding:1px 1px;
     font-size: 0.95em;
     color: var(--text-color);
     cursor: pointer;
@@ -343,7 +344,7 @@ body.background-transitioning .background-stage__layer--transition {
     color: white;
     border: none;
     border-radius: 12px;
-    padding: 12px 20px;
+    padding: 5px 12px;
     cursor: pointer;
     font-size: 16px;
     transition: all 0.2s ease;
@@ -429,7 +430,7 @@ body.background-transitioning .background-stage__layer--transition {
     border-radius: 8px;
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
     padding: 6px 0;
-    min-width: 160px;
+    min-width: 4px;
     z-index: 20000;
     pointer-events: auto;
 }
@@ -649,7 +650,7 @@ body.background-transitioning .background-stage__layer--transition {
     writing-mode: horizontal-tb;
     white-space: nowrap;
     border: none;
-    border-radius: 999px;
+    border-radius: 99px;
     padding: 8px 16px;
     background: var(--primary-color);
     color: #ffffff;
@@ -687,7 +688,7 @@ body.background-transitioning .background-stage__layer--transition {
     color: white;
     border: none;
     border-radius: 8px;
-    padding: 6px 12px;
+    padding: 6px 11px;
     cursor: pointer;
     font-size: 12px;
     transition: all 0.2s ease;
@@ -735,25 +736,25 @@ body.background-transitioning .background-stage__layer--transition {
 .cover-area {
     grid-area: cover;
     background: var(--component-bg);
-    border-radius: 16px;
-    padding: 20px;
+    border-radius: 14px;
+    padding: 1px;
     border: 1px solid var(--border-color);
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 16px;
+    gap: 0px;
     text-align: center;
     box-sizing: border-box;
     height: 100%;
     overflow: hidden;
-    transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+    transition: all 0.5s cubic-bezier(0.6, 0, 0.2, 1);
 }
 
 .album-cover {
     width: 200px;
     height: auto;
-    min-height: 200px;
+    min-height: 2px;
     flex-grow: 0;
     flex-shrink: 0;
     border-radius: 12px;
@@ -842,7 +843,7 @@ body.background-transitioning .background-stage__layer--transition {
 .playlist, .lyrics {
     background: var(--component-bg);
     border-radius: 16px;
-    padding: 20px;
+    padding: 10px;
     border: 1px solid var(--border-color);
     height: 100%;
     min-width: 0;
@@ -859,8 +860,8 @@ body.background-transitioning .background-stage__layer--transition {
 .playlist {
     grid-area: playlist;
     background: var(--component-bg);
-    border-radius: 16px;
-    padding: 72px 20px 24px;
+    border-radius: 11px;
+    padding: 72px 19px 14px;
     border: 1px solid var(--border-color);
     display: flex;
     flex-direction: column;
@@ -872,7 +873,7 @@ body.background-transitioning .background-stage__layer--transition {
 }
 
 html.desktop-view .playlist {
-    padding-top: 72px;
+    padding-top: 60px;
 }
 
 .playlist[hidden],
@@ -1073,7 +1074,7 @@ html.mobile-view .playlist-header .playlist-action-btn {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    padding: 8px 16px;
+    padding: 9px 16px;
     border-radius: 12px;
     border: 1px solid var(--border-color);
     background: transparent;
@@ -1104,7 +1105,7 @@ html.mobile-view .playlist-header .playlist-action-btn {
 
 .mobile-panel-header .playlist-tabs {
     display: flex;
-    gap: 4px;
+    gap: 14px;
     justify-self: flex-start;
     flex: 0 0 auto;
 }
@@ -1154,8 +1155,8 @@ html.mobile-view .playlist-header .playlist-action-btn {
 }
 
 .playlist-items .playlist-item {
-    padding: 10px 12px;
-    padding-right: 110px;
+    padding: 9px 1px;
+    padding-right: 11px;
     border-radius: 8px;
     transition: all 0.2s ease-in-out;
     cursor: pointer;
@@ -1274,7 +1275,7 @@ html.mobile-view .playlist-header .playlist-action-btn {
     background: none;
     color: var(--text-secondary-color);
     cursor: pointer;
-    padding: 4px;
+    padding: 0px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -1315,7 +1316,7 @@ html.mobile-view .playlist-header .playlist-action-btn {
 }
 
 .favorites .playlist-items .playlist-item {
-    padding-right: 150px;
+    padding-right: 1px;
 }
 
 .favorite-item-action {
@@ -1480,7 +1481,7 @@ html.mobile-view .favorites .favorite-item-action--remove {
     border-radius: 12px;
     box-shadow: 0 12px 30px rgba(0, 0, 0, 0.2);
     padding: 6px 0;
-    min-width: 180px;
+    min-width: 1px;
     overflow: hidden;
     z-index: 100000;
 }
@@ -1601,7 +1602,7 @@ html.mobile-view .favorites .favorite-item-action--remove {
 .controls button#loadOnlineBtn {
     width: auto;
     border-radius: 25px;
-    padding: 0 25px;
+    padding: 0 1px;
     gap: 10px;
 }
 .controls button#loadOnlineBtn .btn-text {
@@ -1680,8 +1681,8 @@ html:not(.mobile-view) #playModeBtn {
     grid-area: progress;
     display: flex;
     align-items: center;
-    gap: 12px;
-    min-width: 260px;
+    gap: 0px;
+    min-width: 2px;
     width: 100%;
     justify-self: stretch;
 }
@@ -1691,7 +1692,7 @@ html:not(.mobile-view) #playModeBtn {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 20px;
+    gap: 0px;
     width: 100%;
     flex-wrap: wrap;
 }
@@ -1714,7 +1715,7 @@ html:not(.mobile-view) #playModeBtn {
 .audio-tools {
     display: flex;
     align-items: center;
-    gap: 16px;
+    gap: 16x;
     flex-wrap: wrap;
     justify-content: flex-start;
     flex: 1 1 auto;
@@ -1728,7 +1729,7 @@ html:not(.mobile-view) #playModeBtn {
     display: flex;
     align-items: center;
     gap: 8px;
-    min-width: 140px;
+    min-width: 1px;
 }
 
 .volume-container input[type="range"] {
@@ -1781,7 +1782,7 @@ input[type="range"]:active::-moz-range-thumb {
     align-items: center;
     justify-content: center;
     gap: 0;
-    padding: 10px 16px;
+    padding: 0px 0px;
     border-radius: 8px;
     border: 1px solid var(--border-color);
     background: var(--component-bg);
@@ -1811,7 +1812,7 @@ input[type="range"]:active::-moz-range-thumb {
     border-radius: 12px;
     box-shadow: 0 12px 30px rgba(0,0,0,0.2);
     border: 1px solid var(--border-color);
-    min-width: 180px;
+    min-width: 1px;
     overflow: hidden;
     opacity: 0;
     visibility: hidden;
@@ -1893,7 +1894,7 @@ input[type="range"]:active::-moz-range-thumb {
 /* 播放模式控制按钮 */
 .play-mode-controls {
     display: flex;
-    gap: 10px;
+    gap: 1px;
     align-items: center;
 }
 
@@ -1934,7 +1935,7 @@ input[type="range"]:active::-moz-range-thumb {
     border-radius: 12px;
     box-shadow: 0 12px 30px rgba(0, 0, 0, 0.2);
     z-index: 100000;
-    min-width: 180px;
+    min-width: 1px;
     opacity: 0;
     visibility: hidden;
     transform: translateY(-10px);
@@ -2158,7 +2159,7 @@ input[type="range"]:active::-moz-range-thumb {
     align-items: center;
     justify-content: center;
     position: relative;
-    margin-bottom: 15px;
+    margin-bottom: 0px;
 }
 
 .mobile-turntable__platter {
