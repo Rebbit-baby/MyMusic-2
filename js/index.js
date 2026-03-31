@@ -5972,3 +5972,25 @@ function showNotification(message, type = "success") {
         notification.classList.remove("show");
     }, 3000);
 }
+
+function resize() {
+    const baseWidth = 1200;
+    const baseHeight = 675;
+
+    const scaleX = window.innerWidth / baseWidth;
+    const scaleY = window.innerHeight / baseHeight;
+
+    const scale = Math.min(scaleX, scaleY);
+
+    const container = document.querySelector('.container');
+    container.style.transform = `scale(${scale})`;
+    container.style.transformOrigin = 'center center';
+}
+
+window.addEventListener('resize', resize);
+let timer;
+window.addEventListener('resize', () => {
+    clearTimeout(timer);
+    timer = setTimeout(resize, 100);
+});
+resize();
